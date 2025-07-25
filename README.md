@@ -48,42 +48,9 @@ docker-compose up --build
 
 ---
 
-## 🔐 Autenticación (Token)
-
-### 1. Iniciar sesión
-
-`POST /usuarios/login`
-
-**Body (JSON):**
-
-```json
-{
-  "username": "admin",
-  "password": "admin123"
-}
-```
-
-**Respuesta:**
-```json
-{ "token": "uuid-generado" }
-```
-
-> ⚠️ Guarda este token. Lo necesitarás para acceder a los endpoints protegidos.
-
-### 2. Verificar token (opcional)
-
-`GET /usuarios/verificar-token`
-
-Header:
-```
-Authorization: Bearer <token>
-```
-
----
-
 ## 🧑‍💻 Endpoints Disponibles
 
-### 🔓 Públicos (sin login)
+### Usuarios
 
 - `POST /usuarios/login` — Login con username y password.
 - `POST /usuarios/registrar` — Crear nuevo usuario.
@@ -93,24 +60,13 @@ Authorization: Bearer <token>
 
 ---
 
-### 🔒 Protegidos (requieren token)
-
-> Añadir header: `Authorization: Bearer <token>`
+### Productos
 
 - `GET /productos/` — Listar productos.
 - `POST /productos/registrar` — Agregar producto.
 - `PUT /productos/actualizar/<id>` — Actualizar producto.
 - `DELETE /productos/eliminar/<id>` — Eliminar producto.
 - `GET /productos/disponibilidad/<codigo>` — Consultar stock actual de un producto.
-
----
-
-## 🧪 Pruebas recomendadas
-
-1. Inicia sesión con un usuario válido (`admin`, `josue`).
-2. Usa el token recibido para registrar un producto.
-3. Verifica disponibilidad con `/productos/disponibilidad/PRD001`.
-4. Intenta acceder sin token y verifica que el sistema lo bloquea.
 
 ---
 

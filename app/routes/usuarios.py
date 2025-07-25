@@ -2,38 +2,8 @@
 from flask import Blueprint, request, jsonify, current_app
 import MySQLdb
 from MySQLdb.cursors import DictCursor
-import uuid
 
 usuarios_bp = Blueprint('usuarios', __name__)
-
-active_tokens = {}
-
-@usuarios_bp.route('/login', methods=['POST'])
-def login():
-    mysql = current_app.mysql
-    data = request.json
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("SELECT * FROM usuarios WHERE username=%s AND password=%s", (data['username'], data['password']))
-    user = cur.fetchone()
-    cur.close()
-
-    if user:
-        token = str(uuid.uuid4())
-        active_tokens[token] = user['id']
-        return jsonify({"token": token})
-    else:
-        return jsonify({"error": "Credenciales inválidas"}), 401
-
-@usuarios_bp.route('/verificar-token', methods=['GET'])
-def verificar_token():
-    token = request.headers.get('Authorization', '').replace('Bearer ', '')
-    if token in active_tokens:
-        return jsonify({"valido": True})
-    return jsonify({"valido": False}), 401
-
-# exportamos los tokens activos para que productos.py los pueda verificar
-def get_active_tokens():
-    return active_tokens
 
 @usuarios_bp.route('/', methods=['GET'])
 def listar_usuarios():
