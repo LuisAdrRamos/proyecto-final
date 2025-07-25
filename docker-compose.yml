@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  db_master:
+    image: mysql:5.7
+    container_name: db_master
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - ./db/master/my.cnf:/etc/mysql/my.cnf
+      - ./db/master/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - redapp
+
+  db_slave:
+    image: mysql:5.7
+    container_name: db_slave
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - ./db/slave/my.cnf:/etc/mysql/my.cnf
+    depends_on:
+      - db_master
+    networks:
+      - redapp
+
+  app1:
+    build: ./app
+    container_name: app1
+    ports:
+      - "5001:5000"
+    environment:
+      MYSQL_HOST: db_master
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+      MYSQL_DB: inventario
+    depends_on:
+      - db_master
+    networks:
+      - redapp
+
+  app2:
+    build: ./app
+    container_name: app2
+    ports:
+      - "5002:5000"
+    environment:
+      MYSQL_HOST: db_master
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+      MYSQL_DB: inventario
+    depends_on:
+      - db_master
+    networks:
+      - redapp
+
+  app3:
+    build: ./app
+    container_name: app3
+    ports:
+      - "5003:5000"
+    environment:
+      MYSQL_HOST: db_master
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+      MYSQL_DB: inventario
+    depends_on:
+      - db_master
+    networks:
+      - redapp
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app1
+      - app2
+      - app3
+    networks:
+      - redapp
+
+networks:
+  redapp:
+    driver: bridge
