@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS usuarios (
     username VARCHAR(50) CHARACTER SET utf8mb4 NOT NULL,
     password VARCHAR(100) NOT NULL,
     UNIQUE KEY uq_usuarios_username (username)
-    -- UNIQUE KEY uq_usuarios_password (password)  -- <- NO recomendado, pero si el profe lo exige, descomenta
 );
 
 CREATE TABLE IF NOT EXISTS productos (
