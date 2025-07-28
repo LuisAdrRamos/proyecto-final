@@ -1,5 +1,5 @@
 # app.py
-from flask import Flask
+from flask import Flask, render_template, request
 from flask_mysqldb import MySQL
 import os
 
@@ -21,6 +21,18 @@ from routes.productos import productos_bp
 
 app.register_blueprint(usuarios_bp, url_prefix='/usuarios')
 app.register_blueprint(productos_bp, url_prefix='/productos')
+
+
+@app.route('/')
+def index():
+    """Página de inicio sencilla."""
+    return render_template('index.html')
+
+
+@app.route('/login', methods=['GET'])
+def login_form():
+    """Muestra formulario de login."""
+    return render_template('login.html')
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0')

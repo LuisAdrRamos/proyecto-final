@@ -32,6 +32,22 @@ def registrar_usuario():
             return jsonify({"error": "El username ya existe"}), 409
         return jsonify({"error": str(e)}), 400
 
+@usuarios_bp.route('/login', methods=['POST'])
+def login_usuario():
+    """Verifica credenciales de usuario."""
+    mysql = current_app.mysql
+    data = request.json
+    cur = mysql.connection.cursor(DictCursor)
+    cur.execute(
+        "SELECT id, username FROM usuarios WHERE username=%s AND password=%s",
+        (data.get('username'), data.get('password')),
+    )
+    user = cur.fetchone()
+    cur.close()
+    if user:
+        return jsonify({"message": "Login exitoso", "user": user})
+    return jsonify({"error": "Credenciales inválidas"}), 401
+
 @usuarios_bp.route('/actualizar/<int:id>', methods=['PUT'])
 def actualizar_usuario(id):
     mysql = current_app.mysql
