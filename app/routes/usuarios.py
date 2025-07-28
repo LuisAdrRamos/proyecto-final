@@ -1,79 +1,119 @@
 # routes/usuarios.py
-from flask import Blueprint, request, jsonify, current_app
-import MySQLdb
+from flask import (
+    Blueprint, request, render_template, redirect,
+    url_for, flash, current_app, session
+)
+from functools import wraps
 from MySQLdb.cursors import DictCursor
 
-usuarios_bp = Blueprint('usuarios', __name__)
+usuarios_bp = Blueprint('usuarios', __name__, template_folder='../templates/usuarios')
 
-@usuarios_bp.route('/', methods=['GET'])
-def listar_usuarios():
+def login_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not session.get('user_id'):
+            flash("Debe iniciar sesión para continuar", "warning")
+            return redirect(url_for('usuarios.login'))
+        return view(*args, **kwargs)
+    return wrapped
+
+@usuarios_bp.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        mysql = current_app.mysql
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        cur = mysql.connection.cursor(DictCursor)
+        cur.execute("SELECT id, username FROM usuarios WHERE username=%s AND password=%s",
+                    (username, password))
+        user = cur.fetchone()
+        cur.close()
+
+        if user:
+            session['user_id'] = user['id']
+            session['username'] = user['username']
+            flash('Login exitoso', 'success')
+            return redirect(url_for('productos.listar'))
+        flash('Credenciales inválidas', 'danger')
+
+    return render_template('login.html')
+
+@usuarios_bp.route('/logout', methods=['GET'])
+def logout():
+    session.clear()
+    flash('Sesión cerrada', 'info')
+    return redirect(url_for('usuarios.login'))
+
+@usuarios_bp.route('/html')
+@login_required
+def listar():
     mysql = current_app.mysql
     cur = mysql.connection.cursor(DictCursor)
     cur.execute("SELECT id, username FROM usuarios")
-    data = cur.fetchall()
+    usuarios = cur.fetchall()
     cur.close()
-    return jsonify(data)
+    return render_template('usuarios/listar.html', usuarios=usuarios)
 
-@usuarios_bp.route('/registrar', methods=['POST'])
-def registrar_usuario():
-    mysql = current_app.mysql
-    data = request.json
-    try:
-        cur = mysql.connection.cursor()
-        cur.execute(
-            "INSERT INTO usuarios (username, password) VALUES (%s, %s)",
-            (data['username'], data['password'])
-        )
-        mysql.connection.commit()
-        cur.close()
-        return jsonify({"message": "Usuario registrado"}), 201
-    except MySQLdb.IntegrityError as e:
-        if e.args[0] == 1062:
-            return jsonify({"error": "El username ya existe"}), 409
-        return jsonify({"error": str(e)}), 400
+@usuarios_bp.route('/html/crear', methods=['GET', 'POST'])
+@login_required
+def crear():
+    if request.method == 'POST':
+        mysql = current_app.mysql
+        f = request.form
+        try:
+            cur = mysql.connection.cursor()
+            cur.execute(
+                "INSERT INTO usuarios (username, password) VALUES (%s, %s)",
+                (f['username'], f['password'])
+            )
+            mysql.connection.commit()
+            cur.close()
+            flash('Usuario creado', 'success')
+            return redirect(url_for('usuarios.listar'))
+        except Exception as e:
+            flash(f'Error: {e}', 'danger')
+    return render_template('usuarios/form.html', usuario=None)
 
-@usuarios_bp.route('/login', methods=['POST'])
-def login_usuario():
-    """Verifica credenciales de usuario."""
+@usuarios_bp.route('/html/<int:id>/editar', methods=['GET', 'POST'])
+@login_required
+def editar(id):
     mysql = current_app.mysql
-    data = request.json
     cur = mysql.connection.cursor(DictCursor)
-    cur.execute(
-        "SELECT id, username FROM usuarios WHERE username=%s AND password=%s",
-        (data.get('username'), data.get('password')),
-    )
-    user = cur.fetchone()
+
+    if request.method == 'POST':
+        f = request.form
+        try:
+            cur.execute(
+                "UPDATE usuarios SET username=%s, password=%s WHERE id=%s",
+                (f['username'], f['password'], id)
+            )
+            mysql.connection.commit()
+            cur.close()
+            flash('Usuario actualizado', 'success')
+            return redirect(url_for('usuarios.listar'))
+        except Exception as e:
+            flash(f'Error: {e}', 'danger')
+
+    cur.execute("SELECT id, username, password FROM usuarios WHERE id=%s", (id,))
+    usuario = cur.fetchone()
     cur.close()
-    if user:
-        return jsonify({"message": "Login exitoso", "user": user})
-    return jsonify({"error": "Credenciales inválidas"}), 401
+    if not usuario:
+        flash('Usuario no encontrado', 'warning')
+        return redirect(url_for('usuarios.listar'))
 
-@usuarios_bp.route('/actualizar/<int:id>', methods=['PUT'])
-def actualizar_usuario(id):
-    mysql = current_app.mysql
-    data = request.json
-    try:
-        cur = mysql.connection.cursor()
-        cur.execute(
-            "UPDATE usuarios SET username=%s, password=%s WHERE id=%s",
-            (data['username'], data['password'], id)
-        )
-        mysql.connection.commit()
-        cur.close()
-        return jsonify({"message": "Usuario actualizado"})
-    except MySQLdb.IntegrityError as e:
-        if e.args[0] == 1062:
-            return jsonify({"error": "El username ya existe"}), 409
-        return jsonify({"error": str(e)}), 400
+    return render_template('usuarios/form.html', usuario=usuario)
 
-@usuarios_bp.route('/eliminar/<int:id>', methods=['DELETE'])
-def eliminar_usuario(id):
+@usuarios_bp.route('/html/<int:id>/eliminar', methods=['POST'])
+@login_required
+def eliminar(id):
     mysql = current_app.mysql
     try:
         cur = mysql.connection.cursor()
         cur.execute("DELETE FROM usuarios WHERE id=%s", (id,))
         mysql.connection.commit()
         cur.close()
-        return jsonify({"message": "Usuario eliminado"})
+        flash('Usuario eliminado', 'info')
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        flash(f'Error: {e}', 'danger')
+    return redirect(url_for('usuarios.listar'))

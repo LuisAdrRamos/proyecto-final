@@ -1,11 +1,13 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>Inventario</title>
-</head>
-<body>
-    <h1>Bienvenido al sistema de inventario</h1>
-    <p><a href="/login">Iniciar Sesión</a></p>
-</body>
-</html>
+{% extends "base.html" %}
+{% block title %}Inicio{% endblock %}
+{% block content %}
+<div class="text-center">
+    <h1 class="mb-3">Sistema de Inventario</h1>
+    {% if not session.get('user_id') %}
+    <p>Para gestionar productos y usuarios, inicia sesión.</p>
+    <a href="{{ url_for('usuarios.login') }}" class="btn btn-primary">Ir al Login</a>
+    {% else %}
+    <a href="{{ url_for('productos.listar') }}" class="btn btn-primary">Ver Productos</a>
+    {% endif %}
+</div>
+{% endblock %}

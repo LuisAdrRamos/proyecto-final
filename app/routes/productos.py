@@ -1,75 +1,94 @@
 # routes/productos.py
-from flask import Blueprint, request, jsonify, current_app
-import MySQLdb
+from flask import (
+    Blueprint, request, render_template, redirect,
+    url_for, flash, current_app, session
+)
+from functools import wraps
 from MySQLdb.cursors import DictCursor
 
-productos_bp = Blueprint('productos', __name__)
+productos_bp = Blueprint('productos', __name__, template_folder='../templates/productos')
 
-@productos_bp.route('/', methods=['GET'])
-def listar_productos():
+def login_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not session.get('user_id'):
+            flash("Debe iniciar sesión para continuar", "warning")
+            return redirect(url_for('usuarios.login'))
+        return view(*args, **kwargs)
+    return wrapped
+
+@productos_bp.route('/html')
+@login_required
+def listar():
     mysql = current_app.mysql
     cur = mysql.connection.cursor(DictCursor)
     cur.execute("SELECT id, codigo, nombre, descripcion, unidad, categoria, stock FROM productos")
-    data = cur.fetchall()
+    productos = cur.fetchall()
     cur.close()
-    return jsonify(data)
+    return render_template('productos/listar.html', productos=productos)
 
-@productos_bp.route('/registrar', methods=['POST'])
-def registrar_producto():
+@productos_bp.route('/html/crear', methods=['GET', 'POST'])
+@login_required
+def crear():
+    if request.method == 'POST':
+        mysql = current_app.mysql
+        f = request.form
+        try:
+            cur = mysql.connection.cursor()
+            cur.execute("""INSERT INTO productos
+                        (codigo, nombre, descripcion, unidad, categoria, stock)
+                        VALUES (%s,%s,%s,%s,%s,%s)""",
+                        (f['codigo'], f['nombre'], f['descripcion'],
+                        f['unidad'], f['categoria'], f['stock']))
+            mysql.connection.commit()
+            cur.close()
+            flash('Producto creado', 'success')
+            return redirect(url_for('productos.listar'))
+        except Exception as e:
+            flash(f'Error: {e}', 'danger')
+    return render_template('productos/form.html', producto=None)
+
+@productos_bp.route('/html/<int:id>/editar', methods=['GET', 'POST'])
+@login_required
+def editar(id):
     mysql = current_app.mysql
-    data = request.json
-    try:
-        cur = mysql.connection.cursor()
-        cur.execute(
-            "INSERT INTO productos (codigo, nombre, descripcion, unidad, categoria, stock) VALUES (%s, %s, %s, %s, %s, %s)",
-            (data['codigo'], data['nombre'], data['descripcion'], data['unidad'], data['categoria'], data.get('stock', 0))
-        )
-        mysql.connection.commit()
-        cur.close()
-        return jsonify({"message": "Producto registrado"}), 201
-    except MySQLdb.IntegrityError as e:
-        if e.args[0] == 1062:
-            return jsonify({"error": "El código o nombre del producto ya existe"}), 409
-        return jsonify({"error": str(e)}), 400
+    cur = mysql.connection.cursor(DictCursor)
 
-@productos_bp.route('/actualizar/<int:id>', methods=['PUT'])
-def actualizar_producto(id):
-    mysql = current_app.mysql
-    data = request.json
-    try:
-        cur = mysql.connection.cursor()
-        cur.execute(
-            "UPDATE productos SET codigo=%s, nombre=%s, descripcion=%s, unidad=%s, categoria=%s, stock=%s WHERE id=%s",
-            (data['codigo'], data['nombre'], data['descripcion'], data['unidad'], data['categoria'], data.get('stock', 0), id)
-        )
-        mysql.connection.commit()
-        cur.close()
-        return jsonify({"message": "Producto actualizado"})
-    except MySQLdb.IntegrityError as e:
-        if e.args[0] == 1062:
-            return jsonify({"error": "El código o nombre del producto ya existe"}), 409
-        return jsonify({"error": str(e)}), 400
+    if request.method == 'POST':
+        f = request.form
+        try:
+            cur.execute("""UPDATE productos
+                            SET codigo=%s, nombre=%s, descripcion=%s,
+                            unidad=%s, categoria=%s, stock=%s
+                            WHERE id=%s""",
+                        (f['codigo'], f['nombre'], f['descripcion'],
+                        f['unidad'], f['categoria'], f['stock'], id))
+            mysql.connection.commit()
+            cur.close()
+            flash('Producto actualizado', 'success')
+            return redirect(url_for('productos.listar'))
+        except Exception as e:
+            flash(f'Error: {e}', 'danger')
 
-@productos_bp.route('/eliminar/<int:id>', methods=['DELETE'])
-def eliminar_producto(id):
+    cur.execute("SELECT id, codigo, nombre, descripcion, unidad, categoria, stock FROM productos WHERE id=%s", (id,))
+    producto = cur.fetchone()
+    cur.close()
+    if not producto:
+        flash('Producto no encontrado', 'warning')
+        return redirect(url_for('productos.listar'))
+
+    return render_template('productos/form.html', producto=producto)
+
+@productos_bp.route('/html/<int:id>/eliminar', methods=['POST'])
+@login_required
+def eliminar(id):
     mysql = current_app.mysql
     try:
         cur = mysql.connection.cursor()
         cur.execute("DELETE FROM productos WHERE id=%s", (id,))
         mysql.connection.commit()
         cur.close()
-        return jsonify({"message": "Producto eliminado"})
+        flash('Producto eliminado', 'info')
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
-
-@productos_bp.route('/disponibilidad/<codigo>', methods=['GET'])
-def disponibilidad_producto(codigo):
-    mysql = current_app.mysql
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("SELECT codigo, nombre, stock FROM productos WHERE codigo=%s", (codigo,))
-    prod = cur.fetchone()
-    cur.close()
-    if not prod:
-        return jsonify({"error": "Producto no encontrado"}), 404
-    prod['disponible'] = prod['stock'] > 0
-    return jsonify(prod)
+        flash(f'Error: {e}', 'danger')
+    return redirect(url_for('productos.listar'))
